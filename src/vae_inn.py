@@ -43,6 +43,11 @@ class VariationalEncoder(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.sd_vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse")
+
+        # Freeze sd-vae
+        for param in self.sd_vae.parameters():
+            param.requires_grad = False
+        
         # self.sd_vae.eval()
     def forward(self,x):
         latent_output = self.sd_vae.tiled_encode(x)
@@ -59,7 +64,6 @@ class InnModel(pl.LightningModule):
     def forward(self,x):
         mean_out, _, _ = self.mu(x)
         var_out, _, _ = self.sigma(x)
-        
         return self.relu(mean_out) , self.sig(var_out)
 
 class VaeInnModel(pl.LightningModule):
@@ -150,7 +154,10 @@ class VaeInnModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=0.001)
+        # optimizer = optim.Adam(self.parameters(), lr=0.001)
+
+        # Only optimize the parameters that are requires_grad
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.001)
         return optimizer
 
 # Example usage
@@ -164,12 +171,14 @@ if DEVICE == 'cpu':
   devices = 0
 else:
   devices = 1
-trainer = pl.Trainer(max_epochs=1, devices=devices,logger=logger,callbacks=[checkpoint_callback])  # Set devices=1 for GPU training
+# trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger,callbacks=[checkpoint_callback])  # Set devices=1 for GPU training
+trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger)  # Set devices=1 for GPU training
 
 # Start training
 trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 
 #TODO
-# add tensorboard
+# 1. freeze sd-vae
+# 2. reverse the latent space
  
