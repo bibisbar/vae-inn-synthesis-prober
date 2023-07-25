@@ -2,7 +2,8 @@
 
 # setup
 - activate conda env
-  
+
+        conda env create -f vaeinn.yaml
         conda activate vae-inn
   
 - clone INN repo and install reqs
