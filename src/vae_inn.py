@@ -82,7 +82,9 @@ class VaeInnModel(pl.LightningModule):
         self.norm = torch.distributions.Normal(0, 1)
     def forward(self, x):
         z_sample = self.encoder(x)
-        z_flatten = self.flatten(z_sample*self.scale_factor)
+        # remove the scale factor since it is intialized in diffuser autoencoderKL with 0.18215
+        # z_flatten = self.flatten(z_sample*self.scale_factor)
+        z_flatten = self.flatten(z_sample)
         mean_flatten,var_flatten = self.innmodule(z_flatten)
         mean_sample = mean_flatten.reshape(z_sample.shape)
         var_sample = var_flatten.reshape(z_sample.shape)
@@ -93,9 +95,9 @@ class VaeInnModel(pl.LightningModule):
         #Reparalization
         inn_sample =  var_sample * norm_sample + mean_sample
 
-        inn_sample_reverse = inn_sample / self.scale_factor  #TODO double check if this is correct
+        # inn_sample_reverse = inn_sample / self.scale_factor  #TODO double check if this is correct
 
-        return inn_sample_reverse, mean_sample, var_sample
+        return inn_sample, mean_sample, var_sample
 
     def training_step(self, batch, batch_idx):
         image, label = batch
