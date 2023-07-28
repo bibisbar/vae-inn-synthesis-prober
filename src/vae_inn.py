@@ -22,7 +22,7 @@ logger = TensorBoardLogger("tb_logs", name="my_model")
 # saves a file like: my/path/sample-mnist-epoch=02-val_loss=0.32.ckpt
 checkpoint_callback = ModelCheckpoint(
     monitor='val_loss',
-    filename='sample-cifar10-{epoch:02d}-{val_loss:.2f}',
+    filename='sample-cifar100-{epoch:02d}-{val_loss:.2f}',
     save_top_k=3,
     mode='min',
     save_last=True
@@ -56,21 +56,19 @@ class VariationalEncoder(pl.LightningModule):
 class InnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
-        self.latent_dim = 2
-        self.mu = INN.Sequential(INN.Nonlinear(64, 'RealNVP', k=self.latent_dim), INN.Nonlinear(64, 'RealNVP', k=self.latent_dim))
-        self.sigma = INN.Sequential(INN.Nonlinear(64, 'RealNVP', k=self.latent_dim), INN.Nonlinear(64, 'RealNVP', k=self.latent_dim))
+        self.hidden_layers = 2
+        self.inn = INN.Sequential(INN.Nonlinear(64, 'RealNVP', k=self.latent_dim), INN.Nonlinear(64, 'RealNVP', k=self.hidden_layers))
         self.relu = nn.ReLU()
         self.sig = nn.Sigmoid()
     def forward(self,x):
-        mean_out, _, _ = self.mu(x)
-        var_out, _, _ = self.sigma(x)
-        return self.relu(mean_out) , self.sig(var_out)
+        y, logp, logdet = self.inn(x) 
+        return y, logp, logdet
 
 class VaeInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         
-        self.BATCH_SIZE = 8
+        self.BATCH_SIZE = 64
         #Magic number
         self.scale_factor = 0.18215
         # Initialize three parts
@@ -78,84 +76,48 @@ class VaeInnModel(pl.LightningModule):
         self.flatten = nn.Flatten()
         self.innmodule = InnModel()
 
-        # Initialize a 'target' normal distribution for KL divergence
-        self.norm = torch.distributions.Normal(0, 1)
+        # Initialize a 'target' normal distribution for the NLL loss
+        self.n = INN.utilities.NormalDistribution()
     def forward(self, x):
         z_sample = self.encoder(x)
         z_flatten = self.flatten(z_sample*self.scale_factor)
-        mean_flatten,var_flatten = self.innmodule(z_flatten)
-        mean_sample = mean_flatten.reshape(z_sample.shape)
-        var_sample = var_flatten.reshape(z_sample.shape)
-
-        #Get sample from norm distribution
-        norm_sample = self.norm.sample(mean_sample.shape).to(DEVICE)
-
-        #Reparalization
-        inn_sample =  var_sample * norm_sample + mean_sample
-
-        inn_sample_reverse = inn_sample / self.scale_factor  #TODO double check if this is correct
-
-        return inn_sample_reverse, mean_sample, var_sample
+        y, logp, logdet = self.innmodule(z_flatten)
+        return y, logp, logdet
 
     def training_step(self, batch, batch_idx):
         image, label = batch
-        latent_output, mean , var = self(image)
+        y, logp, logdet = self(image)
+        py = self.n.logp(y)
 
-
-        #image_rec = sd_vae.tiled_decode(latent_output).sample
-
-        #Compute kl loss
-        kl_loss = (0.5 * (var ** 2) + 0.5 * (mean ** 2) - torch.log(var) - 0.5).float().sum()
-        self.log("train_kl_loss", kl_loss)
-        #Compute reconstruction loss
-        #rec_loss = ((image - image_rec)**2).sum()
-        #self.log("train_rec_loss", rec_loss)
-        #loss = kl_loss + rec_loss
-        loss = kl_loss  #remove rec loss
-        #Logs
+        loss = py + logp + logdet
+        loss = -1 * loss.mean()
         
         self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         image, label = batch
-        latent_output, mean , var = self(image)
+        y, logp, logdet = self(image)
+        py = self.n.logp(y)
 
-        #image_rec = sd_vae.tiled_decode(latent_output).sample
-
-        #Compute kl loss
-        kl_loss = (0.5 * (var ** 2) + 0.5 * (mean ** 2) - torch.log(var) - 0.5).sum()
-        self.log("val_kl_loss", kl_loss)
-        #Compute reconstruction loss
-        #rec_loss = ((image - image_rec)**2).sum()
-        #self.log("val_rec_loss", rec_loss)
-        #loss = kl_loss + rec_loss
-        loss = kl_loss  #remove rec loss
-        #Logs
-        self.log("val_total_loss", loss)
+        loss = py + logp + logdet
+        loss = -1 * loss.mean()
+        
+        self.log("val_total_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def test_step(self, batch, batch_idx):
         image, label = batch
-        latent_output, mean , var = self(image)
+        y, logp, logdet = self(image)
+        py = self.n.logp(y)
 
-        #image_rec = sd_vae.tiled_decode(latent_output).sample
-
-        #Compute kl loss
-        kl_loss = (0.5 * (var ** 2) + 0.5 * (mean ** 2) - torch.log(var) - 0.5).sum()
-        self.log("test_kl_loss", kl_loss)
-        #Compute reconstruction loss
-        #rec_loss = ((image - image_rec)**2).sum()
-        #self.log("test_rec_loss", rec_loss)
-        #loss = kl_loss + rec_loss
-        loss = kl_loss  #remove rec loss
-        #Logs
+        loss = py + logp + logdet
+        loss = -1 * loss.mean()
+        
         self.log("test_total_loss", loss)
         return loss
 
     def configure_optimizers(self):
-        # optimizer = optim.Adam(self.parameters(), lr=0.001)
-
         # Only optimize the parameters that are requires_grad
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.001)
         return optimizer
@@ -172,13 +134,7 @@ if DEVICE == 'cpu':
 else:
   devices = 1
 # trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger,callbacks=[checkpoint_callback])  # Set devices=1 for GPU training
-trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger)  # Set devices=1 for GPU training
+trainer = pl.Trainer(max_epochs=30, devices=devices, logger=logger)  # Set devices=1 for GPU training
 
 # Start training
 trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
-
-
-#TODO
-# 1. freeze sd-vae
-# 2. reverse the latent space
- 
