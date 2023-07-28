@@ -15,6 +15,9 @@ from diffusers.models import AutoencoderKL
 import numpy as np
 import INN
 
+from utils import tensor_to_image
+
+
 #add tensorboard logger
 logger = TensorBoardLogger("tb_logs", name="my_model")
 
@@ -61,16 +64,30 @@ class InnModel(pl.LightningModule):
         self.sigma = INN.Sequential(INN.Nonlinear(64, 'RealNVP', k=self.latent_dim), INN.Nonlinear(64, 'RealNVP', k=self.latent_dim))
         self.relu = nn.ReLU()
         self.sig = nn.Sigmoid()
+        self.var = nn.logit()
     def forward(self,x):
         mean_out, _, _ = self.mu(x)
         var_out, _, _ = self.sigma(x)
         return self.relu(mean_out) , self.sig(var_out)
+    
+    # latent_vector = encode(image)
+    # latent_sample_vector = inn(norm_distribution)# latent_sample_vector = var * norm_distribution + mean
+    # image_rec = decode(latent_sample_vector)
+
+    # self.mu.reverse()
+    # self.sigma.reverse()
+
+    # self.sigma = logit(var)
+    # ori_latent_vector = inn.reverse()
+
+
+
 
 class VaeInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         
-        self.BATCH_SIZE = 8
+        self.BATCH_SIZE = 4
         #Magic number
         self.scale_factor = 0.18215
         # Initialize three parts
@@ -86,8 +103,8 @@ class VaeInnModel(pl.LightningModule):
         # z_flatten = self.flatten(z_sample*self.scale_factor)
         z_flatten = self.flatten(z_sample)
         mean_flatten,var_flatten = self.innmodule(z_flatten)
-        mean_sample = mean_flatten.reshape(z_sample.shape)
-        var_sample = var_flatten.reshape(z_sample.shape)
+        mean_sample = mean_flatten.reshape(z_sample.shape).to(DEVICE)
+        var_sample = var_flatten.reshape(z_sample.shape).to(DEVICE)
 
         #Get sample from norm distribution
         norm_sample = self.norm.sample(mean_sample.shape).to(DEVICE)
@@ -98,6 +115,10 @@ class VaeInnModel(pl.LightningModule):
         # inn_sample_reverse = inn_sample / self.scale_factor  #TODO double check if this is correct
 
         return inn_sample, mean_sample, var_sample
+    
+    def latent_space(self,image):
+        latent_output, mean , var = self(image)
+        print(latent_output)
 
     def training_step(self, batch, batch_idx):
         image, label = batch
@@ -169,6 +190,25 @@ model = VaeInnModel()
 train_loader = DataLoader(train_set, batch_size=model.BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_set, batch_size=model.BATCH_SIZE)
 
+
+
+encoder = VariationalEncoder()
+vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse")
+
+#get a batch of data to test
+features, targets = next(iter(train_loader))
+image_demo = features[0]
+image_demo.unsqueeze(0)
+tensor_to_image(image_demo)
+#encode
+latent_space = encoder(features)
+#decode
+decoded_output = vae.tiled_decode(latent_space)
+image_rec = decoded_output.sample[0].unsqueeze(0)
+image_rec = image_rec.squeeze(0)
+tensor_to_image(image_rec)
+
+
 if DEVICE == 'cpu':
   devices = 0
 else:
@@ -181,6 +221,5 @@ trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 
 #TODO
-# 1. freeze sd-vae
-# 2. reverse the latent space
- 
+# 1. remove scale factor
+# 2. add logits to inn model
