@@ -1,8 +1,9 @@
 /src/data
 /src/tb_logs
 
+*.ckpt
 
-
+*.pt
 
 
 
