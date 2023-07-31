@@ -16,6 +16,7 @@ import torchvision
 
 #add tensorboard logger
 logger = TensorBoardLogger("tb_logs", name="my_model")
+print(torch.cuda.is_available())
 
 #add ckpt
 # saves a file like: my/path/sample-mnist-epoch=02-val_loss=0.32.ckpt
@@ -32,9 +33,9 @@ checkpoint_callback = ModelCheckpoint(
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 transform = Compose(
-    [Resize((32,32)), Grayscale(3), ToTensor(), Normalize((0.1307,), (0.3081,))])
+    [Resize((64,64)), ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-train_set = datasets.MNIST(root='data', train=True,
+train_set = datasets.CIFAR10(root='data', train=True,
                               download=True, transform=transform)
 val_set = datasets.CIFAR10(root='data', train=False,
                               download=True, transform=transform)
@@ -60,8 +61,8 @@ class ModelSaveCallback(Callback):
         if trainer.current_epoch % 2 == 0:
           torch.save(model.state_dict(), "model.pt")
           BATCH_SIZE = 10
-          samples = model.innmodule.inn.inverse(torch.randn((BATCH_SIZE, 64))).detach()
-          samples = samples.reshape((BATCH_SIZE, 4, 4, 4))
+          samples = model.innmodule.inn.inverse(torch.randn((BATCH_SIZE, 256))).detach()
+          samples = samples.reshape((BATCH_SIZE, 4, 8, 8))
           decoded_img = model.encoder.sd_vae.tiled_decode(samples)
           grid_img = torchvision.utils.make_grid(decoded_img.sample, nrow=5)
           torchvision.utils.save_image(grid_img, f"vae-inn-synthesis-prober/src/outputs_mnist/epoch_{trainer.current_epoch}.png")

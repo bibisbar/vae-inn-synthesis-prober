@@ -23,7 +23,7 @@ class VariationalEncoder(pl.LightningModule):
 class InnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
-        self.dims = 64
+        self.dims = 256
         self.inn = INN.Sequential(INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
@@ -33,6 +33,36 @@ class InnModel(pl.LightningModule):
     def forward(self,x):
         y, logp, logdet = self.inn(x) 
         return y, logp, logdet
+    
+class ConvInnModel(pl.LightningModule):
+    def __init__(self) :
+        super().__init__()
+        self.n = INN.utilities.NormalDistribution()
+        self.inn = INN.Sequential(INN.Conv2d(channels=1, kernel_size=3),
+                                  INN.Conv2d(channels=1, kernel_size=3),
+                                  INN.Conv2d(channels=1, kernel_size=3),
+                                  INN.Conv2d(channels=1, kernel_size=3),
+                                  INN.Conv2d(channels=1, kernel_size=3),
+                                  INN.Conv2d(channels=1, kernel_size=3))
+    def forward(self,x):
+        y, logp, logdet = self.inn(x) 
+        return y, logp, logdet
+    
+    def training_step(self, batch, batch_idx):
+        image, label = batch
+        y, logp, logdet = self(image)
+        py = self.n.logp(y)
+
+        loss = py + logp + logdet
+        loss = -1 * loss.mean()
+        
+        self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+    
+    def configure_optimizers(self):
+        # Only optimize the parameters that are requires_grad
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0005)
+        return optimizer
     
 class VaeInnModel(pl.LightningModule):
     def __init__(self) :
@@ -59,7 +89,7 @@ class VaeInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logdet
+        loss = py + logp + logdet
         loss = -1 * loss.mean()
         
         self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
