@@ -25,10 +25,11 @@ class InnModel(pl.LightningModule):
         super().__init__()
         self.dims = 64
         self.inn = INN.Sequential(INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
-                       INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
-                       INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
-                       INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
-                       INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),)
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims))
     def forward(self,x):
         y, logp, logdet = self.inn(x) 
         return y, logp, logdet
@@ -37,7 +38,7 @@ class VaeInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         
-        self.BATCH_SIZE = 32
+        self.BATCH_SIZE = 64
         #Magic number
         self.scale_factor = 0.18215
         # Initialize three parts
@@ -58,7 +59,7 @@ class VaeInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logp + logdet
+        loss = py + logdet
         loss = -1 * loss.mean()
         
         self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -88,5 +89,5 @@ class VaeInnModel(pl.LightningModule):
 
     def configure_optimizers(self):
         # Only optimize the parameters that are requires_grad
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.003)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0005)
         return optimizer
