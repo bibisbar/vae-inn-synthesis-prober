@@ -20,11 +20,15 @@ class VariationalEncoder(pl.LightningModule):
         latent_output = self.sd_vae.tiled_encode(x)
         return latent_output.latent_dist.sample()
 
+# For learning with the vae
 class InnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
-        self.dims = 256
+        self.dims = 4*4*4
         self.inn = INN.Sequential(INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
@@ -38,14 +42,15 @@ class ConvInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         self.n = INN.utilities.NormalDistribution()
-        self.inn = INN.Sequential(INN.Conv2d(channels=1, kernel_size=3),
-                                  INN.Conv2d(channels=1, kernel_size=3),
-                                  INN.Conv2d(channels=1, kernel_size=3),
-                                  INN.Conv2d(channels=1, kernel_size=3),
-                                  INN.Conv2d(channels=1, kernel_size=3),
-                                  INN.Conv2d(channels=1, kernel_size=3))
+        #convnet
+        self.inn_conv = INN.Sequential(INN.Conv2d(channels=1, kernel_size=13, activation_fn=nn.ReLU),
+                                  INN.Conv2d(channels=1, kernel_size=7, activation_fn=nn.ReLU),
+                                  INN.Conv2d(channels=1, kernel_size=5, activation_fn=nn.ReLU))
+        self.flatten = nn.Flatten()
+        self.inn_dense = INN.Sequential(INN.BatchNorm1d(28*28), INN.Nonlinear(28*28, 'RealNVP', activation_fn=nn.Sigmoid))
     def forward(self,x):
-        y, logp, logdet = self.inn(x) 
+        y, _, _ = self.inn_conv(x)
+        y, logp, logdet = self.inn_dense(self.flatten(y)) 
         return y, logp, logdet
     
     def training_step(self, batch, batch_idx):
@@ -53,7 +58,7 @@ class ConvInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logp + logdet
+        loss = py + logdet
         loss = -1 * loss.mean()
         
         self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -61,14 +66,14 @@ class ConvInnModel(pl.LightningModule):
     
     def configure_optimizers(self):
         # Only optimize the parameters that are requires_grad
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0005)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0001)
         return optimizer
     
 class VaeInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         
-        self.BATCH_SIZE = 64
+        self.BATCH_SIZE = 4096
         #Magic number
         self.scale_factor = 0.18215
         # Initialize three parts
@@ -89,7 +94,7 @@ class VaeInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logp + logdet
+        loss = py + logdet
         loss = -1 * loss.mean()
         
         self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -119,5 +124,5 @@ class VaeInnModel(pl.LightningModule):
 
     def configure_optimizers(self):
         # Only optimize the parameters that are requires_grad
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0005)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=0.0001)
         return optimizer
