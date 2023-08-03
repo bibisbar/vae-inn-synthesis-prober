@@ -2,7 +2,7 @@
 /src/tb_logs
 
 *.ckpt
-
+*.png
 *.pt
 
 

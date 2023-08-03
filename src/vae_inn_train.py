@@ -31,10 +31,13 @@ checkpoint_callback = ModelCheckpoint(
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# transform = Compose(
+#     [Resize((32,32)), Grayscale(3), ToTensor(), Normalize((0.1307,), (0.3081,))])
 transform = Compose(
-    [Resize((32,32)), Grayscale(3), ToTensor(), Normalize((0.1307,), (0.3081,))])
+    [ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    
 
-train_set = datasets.MNIST(root='data', train=True,
+train_set = datasets.CIFAR10(root='data', train=True,
                               download=True, transform=transform)
 val_set = datasets.CIFAR10(root='data', train=False,
                               download=True, transform=transform)
@@ -57,21 +60,21 @@ class ModelSaveCallback(Callback):
         print("Training is starting")
 
     def on_train_epoch_start(self, trainer: Trainer, pl_module: pl.LightningModule) -> None:
-        if trainer.current_epoch % 2 == 0:
+        if trainer.current_epoch % 20 == 0:
           torch.save(model.state_dict(), "model.pt")
           BATCH_SIZE = 10
-          samples = model.innmodule.inn.inverse(torch.randn((BATCH_SIZE, 64))).detach()
+          samples = model.innmodule.inn.inverse(torch.randn((BATCH_SIZE, 64)).to(DEVICE)).to(DEVICE).detach()
           samples = samples.reshape((BATCH_SIZE, 4, 4, 4))
           decoded_img = model.encoder.sd_vae.tiled_decode(samples)
           grid_img = torchvision.utils.make_grid(decoded_img.sample, nrow=5)
-          torchvision.utils.save_image(grid_img, f"vae-inn-synthesis-prober/src/outputs_mnist/epoch_{trainer.current_epoch}.png")
+          torchvision.utils.save_image(grid_img, f'/export/home/ra35tiy/vae-inn-synthesis-prober/src/outputs_cifar/epoch_{trainer.current_epoch}.png')
 
     def on_train_end(self, trainer, pl_module):
         print("Training is ending")
 
 
 # trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger,callbacks=[checkpoint_callback])  # Set devices=1 for GPU training
-trainer = pl.Trainer(max_epochs=200, devices=devices, logger=logger, callbacks=[ModelSaveCallback()])  # Set devices=1 for GPU training
+trainer = pl.Trainer(max_epochs=10000, devices=devices, logger=logger, callbacks=[ModelSaveCallback()])  # Set devices=1 for GPU training
 
 # Start training
 trainer.fit(model, train_dataloaders=train_loader)

@@ -21,7 +21,7 @@ from model import VaeInnModel
 BATCH_SIZE = 20 # create BATCH_SIZE images in total
 
 model = VaeInnModel()
-model.load_state_dict(torch.load("model.pt"))
+model.load_state_dict(torch.load("/export/home/ra35tiy/vae-inn-synthesis-prober/model_mnist_vae.pt"))
 model.eval()
 model.cuda()
 
@@ -49,13 +49,22 @@ train_loader = DataLoader(train_set, batch_size=20, shuffle=True)
 val_loader = DataLoader(val_set, batch_size=20)
 
 
-encoder = model.VariationalEncoder()
-vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse")
+# encoder = model.VariationalEncoder()
+# vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse")
 
 #get a batch of data to test
 features, targets = next(iter(train_loader))
 grid_img = torchvision.utils.make_grid(features.cpu(), nrow=5)
 plt.imshow(grid_img.permute(1, 2, 0))
+plt.savefig("original.png")
+
+inn_output,x1,x2 = model(features.cuda())
+print(inn_output.shape)
+samples = inn_output.reshape((20, 4, 4, 4))
+decoded_img = model.encoder.sd_vae.tiled_decode(samples)
+grid_img = torchvision.utils.make_grid(decoded_img.sample.cpu(), nrow=5)
+plt.imshow(grid_img.permute(1, 2, 0))
+plt.savefig("reconstructed.png")
 
 # image_demo = features[0]
 # image_demo.unsqueeze(0)
