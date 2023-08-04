@@ -105,7 +105,7 @@ class VaeInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logp + logdet
+        loss = py + logdet
         loss = -1 * loss.mean()
         
         self.log("val_total_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -116,7 +116,7 @@ class VaeInnModel(pl.LightningModule):
         y, logp, logdet = self(image)
         py = self.n.logp(y)
 
-        loss = py + logp + logdet
+        loss = py + logdet
         loss = -1 * loss.mean()
         
         self.log("test_total_loss", loss)
