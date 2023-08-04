@@ -61,7 +61,7 @@ class ConvInnModel(pl.LightningModule):
         loss = py + logdet
         loss = -1 * loss.mean()
         
-        self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True,sync_dist=True)
         return loss
     
     def configure_optimizers(self):
@@ -73,7 +73,7 @@ class VaeInnModel(pl.LightningModule):
     def __init__(self) :
         super().__init__()
         
-        self.BATCH_SIZE = 4096
+        self.BATCH_SIZE = 2048
         #Magic number
         self.scale_factor = 0.18215
         # Initialize three parts
@@ -85,7 +85,8 @@ class VaeInnModel(pl.LightningModule):
         self.n = INN.utilities.NormalDistribution()
     def forward(self, x):
         z_sample = self.encoder(x)
-        z_flatten = self.flatten(z_sample*self.scale_factor)
+        # z_flatten = self.flatten(z_sample*self.scale_factor)
+        z_flatten = self.flatten(z_sample)
         y, logp, logdet = self.innmodule(z_flatten)
         return y, logp, logdet
 
@@ -97,7 +98,7 @@ class VaeInnModel(pl.LightningModule):
         loss = py + logdet
         loss = -1 * loss.mean()
         
-        self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True,sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -108,7 +109,7 @@ class VaeInnModel(pl.LightningModule):
         loss = py + logdet
         loss = -1 * loss.mean()
         
-        self.log("val_total_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val_total_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True,sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -119,7 +120,7 @@ class VaeInnModel(pl.LightningModule):
         loss = py + logdet
         loss = -1 * loss.mean()
         
-        self.log("test_total_loss", loss)
+        self.log("test_total_loss", loss,sync_dist=True)
         return loss
 
     def configure_optimizers(self):

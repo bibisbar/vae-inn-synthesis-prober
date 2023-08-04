@@ -1,5 +1,6 @@
 from numpy.core.fromnumeric import var
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -46,10 +47,10 @@ pl.seed_everything(42)
 train_loader = DataLoader(train_set, batch_size=model.BATCH_SIZE, shuffle=True)
 #val_loader = DataLoader(val_set, batch_size=model.BATCH_SIZE)
 
-if DEVICE == 'cpu':
-  devices = 0
-else:
-  devices = 1
+# if DEVICE == 'cpu':
+#   devices = 0
+# else:
+#   devices = 1
 
 class ModelSaveCallback(Callback):
     def on_train_start(self, trainer, pl_module):
@@ -65,14 +66,14 @@ class ModelSaveCallback(Callback):
           #transform = Grayscale(1) # for single-channel datasets
           #imgs = transform(imgs)
           grid_img = torchvision.utils.make_grid(imgs, nrow=5)
-          torchvision.utils.save_image(grid_img, f"vae-inn-synthesis-prober/src/outputs_vae_cifar10/epoch_{trainer.current_epoch}.png")
+          torchvision.utils.save_image(grid_img, f"/export/home/ra35tiy/vae-inn-synthesis-prober/src/outputs_vae_cifar10/epoch_{trainer.current_epoch}.png")
 
     def on_train_end(self, trainer, pl_module):
         print("Training is ending")
 
 
 # trainer = pl.Trainer(max_epochs=10, devices=devices,logger=logger,callbacks=[checkpoint_callback])  # Set devices=1 for GPU training
-trainer = pl.Trainer(max_epochs=10000, devices=devices, logger=logger, callbacks=[ModelSaveCallback()])  # Set devices=1 for GPU training
+trainer = pl.Trainer(max_epochs=10000, logger=logger, callbacks=[ModelSaveCallback()],accelerator="gpu", devices=4)  # Set devices=1 for GPU training
 
 # Start training
 trainer.fit(model, train_dataloaders=train_loader)
