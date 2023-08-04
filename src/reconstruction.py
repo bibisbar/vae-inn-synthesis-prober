@@ -25,16 +25,6 @@ model.load_state_dict(torch.load("model.pt"))
 model.eval()
 model.cuda()
 
-# samples = model.innmodule.inn.inverse(torch.randn(BATCH_SIZE, 64).cuda()).detach()
-# samples = samples.reshape((BATCH_SIZE,4,4,4)) # for cifar10 dataset
-# samples.shape
-
-# decoded_img = model.encoder.sd_vae.tiled_decode(samples)
-# decoded_img.sample.shape
-
-# grid_img = torchvision.utils.make_grid(decoded_img.sample.cpu(), nrow=5)
-# plt.imshow(grid_img.permute(1, 2, 0))
-
 
 transform = Compose(
     [ToTensor(),
