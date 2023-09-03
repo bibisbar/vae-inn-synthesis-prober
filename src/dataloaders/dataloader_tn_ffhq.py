@@ -15,8 +15,6 @@ transform = transforms.Compose([
                                 transforms.ToTensor()
                                ])
 dataset = datasets.ImageFolder(data_dir, transform=transform)
-lengths = [int(len(dataset)*0.8), int(len(dataset)*0.2)]
-train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True)
+#lengths = [int(len(dataset)*0.8), int(len(dataset)*0.2)]
+train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=12, shuffle=True)
 
-image ,label= next(iter(train_dataloader))
-print(image.shape)
