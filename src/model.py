@@ -28,6 +28,7 @@ class InnModel(pl.LightningModule):
         self.inn = INN.Sequential(INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
+                                  INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims),
                                   INN.BatchNorm1d(self.dims), INN.Nonlinear(self.dims, 'RealNVP'), INN.JacobianLinear(self.dims)
                                   )
     def forward(self,x):
